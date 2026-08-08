@@ -67,6 +67,33 @@ Examples of tools worth adding for company work: git commit/push, Docker
 build/run, hitting an internal API, deploying to a staging server, reading
 from a company wiki or ticket system.
 
+## Memory & git history
+
+MM is version-controlled with git from the start, and that history *is*
+its long-term memory:
+
+- Every session's full conversation is saved to `sessions/session_<date>.json`.
+- MM can call the `remember` tool to save durable facts (your preferences,
+  project details, decisions) into `memory/notes.md` — a plain, human-readable
+  file organized by section.
+- After every turn, MM auto-commits any changes (sessions, memory, code) to
+  git, tagged with a short summary. Turn this off via `git_auto_commit: false`
+  in `config.yaml` if you'd rather commit manually.
+- `memory/notes.md` is read fresh into the system prompt at the start of
+  every session, so MM actually uses what it remembers rather than just
+  storing it.
+
+Useful commands:
+```bash
+git log --oneline                    # full timeline of everything MM did
+git log -p memory/notes.md           # see how MM's memory of you evolved
+git diff HEAD~5 -- memory/notes.md   # what got remembered in the last 5 commits
+```
+
+If you ever want to fork this into a *shared* team knowledge base rather
+than a personal one, push this repo to a private GitHub/GitLab remote —
+the structure already supports it.
+
 ## Security notes
 
 - `run_shell` asks for confirmation by default — keep this on unless you
@@ -74,5 +101,8 @@ from a company wiki or ticket system.
 - Cloud backends send your code/prompts to that provider's API. If that's
   a concern for company IP, use `ollama_local` or check your company's
   policy on external AI tools first.
-- Sessions are saved to `sessions/*.json` in plaintext — don't commit that
-  folder to git if it contains sensitive project details.
+- Sessions are saved to `sessions/*.json` in plaintext **and committed to
+  git** — treat this repo itself as sensitive if your projects are. Don't
+  push it to a public remote; if you push to a private company remote,
+  make sure that's consistent with your company's policy on where code/
+  chat logs are allowed to live.
