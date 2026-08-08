@@ -1,0 +1,16 @@
+# Secrets - never commit
+.env
+*.key
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# OS junk
+.DS_Store
+
+# Note: sessions/ and memory/ ARE tracked on purpose - that's the point.
+# If a session ever contains something sensitive you don't want in git
+# history, remove it from sessions/ before it gets committed.

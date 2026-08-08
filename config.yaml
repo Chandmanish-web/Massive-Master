@@ -1,0 +1,38 @@
+# mycli agent configuration
+# ---------------------------------------------------------
+# Choose your backend. Swap "active" without touching code.
+active_backend: anthropic
+
+backends:
+  anthropic:
+    api_key_env: ANTHROPIC_API_KEY      # export this in your shell
+    model: claude-sonnet-4-6
+    base_url: https://api.anthropic.com/v1/messages
+    max_tokens: 4096
+
+  openai:
+    api_key_env: OPENAI_API_KEY
+    model: gpt-4.1
+    base_url: https://api.openai.com/v1/chat/completions
+    max_tokens: 4096
+
+  ollama_local:
+    # Fully local/offline option - no API key, no data leaves your machine.
+    # Requires: https://ollama.com installed + `ollama pull qwen2.5-coder:14b` (or similar)
+    base_url: http://localhost:11434/api/chat
+    model: qwen2.5-coder:14b
+    max_tokens: 4096
+
+# Safety: require manual confirmation before running shell commands
+confirm_shell_commands: true
+
+# Auto-commit sessions + memory to git after every turn.
+# This is what makes git your "proper personal AI" history - every
+# session and every remembered fact is a recoverable commit.
+git_auto_commit: true
+
+# Where session history is stored
+session_dir: sessions
+
+# System prompt file - EDIT THIS to define your agent's purpose/behavior
+system_prompt_file: prompts/system_prompt.md
