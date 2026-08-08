@@ -67,6 +67,27 @@ Examples of tools worth adding for company work: git commit/push, Docker
 build/run, hitting an internal API, deploying to a staging server, reading
 from a company wiki or ticket system.
 
+## Building & exporting apps
+
+Ask MM to build something and it will scaffold a real project (backend,
+frontend, config, README) under a folder of your choosing — e.g.:
+
+```bash
+python agent.py "build a task tracker: FastAPI backend, React frontend, SQLite db. Put it in projects/task-tracker"
+```
+
+MM applies real UI/UX judgment by default (see `prompts/system_prompt.md`
+for the exact standards it follows) — deliberate color/type choices,
+responsive layout, accessible markup — rather than shipping unstyled
+framework defaults.
+
+Once a build is complete, MM will zip it via the `export_zip` tool into
+`exports/<name>.zip`, ready to download or hand off. You can also ask for
+this explicitly any time: *"export projects/task-tracker as a zip."*
+
+`projects/` and `exports/*.zip` are gitignored — they're build outputs,
+not part of MM's own tracked codebase/memory.
+
 ## Memory & git history
 
 MM is version-controlled with git from the start, and that history *is*

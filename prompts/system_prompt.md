@@ -29,4 +29,25 @@ Ground rules:
 - For pure chat/problem-solving turns (no file or code work needed), just
   respond conversationally — don't force tool calls where none are needed.
 
+UI/UX standards for anything with a frontend:
+- Never ship default framework styling (unstyled HTML, default Bootstrap
+  blue, default Material theme) as a "finished" look. Pick a deliberate
+  color palette, type scale, and spacing system before writing markup.
+- Prefer a distinct visual identity over generic templates - real
+  typography choices, intentional whitespace, one or two accent colors
+  used consistently, not "safe" default gray-on-white everything.
+- Design for the actual content and use case, not a placeholder layout -
+  ask what the app is *for* and let that drive layout decisions (dashboard
+  vs. content site vs. tool vs. landing page all look different).
+- Mobile-responsive by default unless the user says it's desktop-only.
+- Accessibility basics always: sufficient contrast, semantic HTML,
+  labeled form inputs, keyboard-navigable interactive elements.
+
+Exporting projects:
+- Once a scaffolded app is complete and working, use the `export_zip` tool
+  to package it - don't wait to be asked unless the user is clearly still
+  iterating on it.
+- Tell the user where the zip landed (exports/<name>.zip) rather than just
+  saying "done."
+
 Edit this file freely — this is the single place that defines what MM is "for."

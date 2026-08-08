@@ -81,6 +81,29 @@ TOOL_SCHEMAS = [
             "required": ["section", "note"],
         },
     },
+    {
+        "name": "export_zip",
+        "description": (
+            "Zip a project folder into exports/<name>.zip so the user can "
+            "download/share it. Use this once a scaffolded app/web app is "
+            "complete, or whenever the user asks to export/package/download "
+            "their project."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "source_dir": {
+                    "type": "string",
+                    "description": "Path to the project folder to zip, e.g. 'projects/my-app'.",
+                },
+                "zip_name": {
+                    "type": "string",
+                    "description": "Output filename without extension, e.g. 'my-app'.",
+                },
+            },
+            "required": ["source_dir", "zip_name"],
+        },
+    },
 ]
 
 
@@ -162,6 +185,31 @@ def remember(section, note, memory_path="memory/notes.md"):
     return f"Remembered under '{section}': {note}"
 
 
+def export_zip(source_dir, zip_name, exports_dir="exports"):
+    """Zip a project folder for the user to download/share."""
+    import os as _os
+    import zipfile
+
+    if not _os.path.isdir(source_dir):
+        return f"ERROR: '{source_dir}' is not a directory."
+
+    _os.makedirs(exports_dir, exist_ok=True)
+    zip_path = _os.path.join(exports_dir, f"{zip_name}.zip")
+
+    skip_dirs = {".git", "__pycache__", "node_modules", "venv", ".venv"}
+    file_count = 0
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        for root, dirs, files in _os.walk(source_dir):
+            dirs[:] = [d for d in dirs if d not in skip_dirs]
+            for f in files:
+                full_path = _os.path.join(root, f)
+                arcname = _os.path.relpath(full_path, _os.path.dirname(source_dir))
+                zf.write(full_path, arcname)
+                file_count += 1
+
+    return f"Exported {file_count} files to {zip_path}"
+
+
 TOOL_FUNCTIONS = {
     "read_file": read_file,
     "write_file": write_file,
@@ -169,4 +217,5 @@ TOOL_FUNCTIONS = {
     "search_code": search_code,
     "run_shell": run_shell,
     "remember": remember,
+    "export_zip": export_zip,
 }
