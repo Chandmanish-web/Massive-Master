@@ -1,7 +1,7 @@
 # mycli agent configuration
 # ---------------------------------------------------------
 # Choose your backend. Swap "active" without touching code.
-active_backend: ollama_local
+active_backend: anthropic
 
 backends:
   anthropic:
