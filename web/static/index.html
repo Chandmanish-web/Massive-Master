@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MM — massive-master</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-mark">&gt;</span>
+        <span class="brand-name">massive<em>master</em></span>
+      </div>
+      <button class="new-chat-btn" id="newChatBtn">+ New session</button>
+      <div class="sidebar-meta">
+        <div class="meta-row"><span class="meta-label">backend</span><span id="backendName">—</span></div>
+        <div class="meta-row"><span class="meta-label">status</span><span id="statusDot" class="status-dot">●</span></div>
+      </div>
+      <div class="sidebar-footer">
+        local · private · yours
+      </div>
+    </aside>
+
+    <main class="chat">
+      <div class="messages" id="messages">
+        <div class="empty-state">
+          <span class="empty-caret">&gt;</span>
+          <p>Ask MM to build something, debug something, or just think out loud.</p>
+        </div>
+      </div>
+
+      <form class="composer" id="composerForm">
+        <span class="composer-caret">&gt;</span>
+        <textarea id="input" placeholder="message MM_" rows="1" autofocus></textarea>
+        <button type="submit" id="sendBtn" aria-label="Send">send</button>
+      </form>
+    </main>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
