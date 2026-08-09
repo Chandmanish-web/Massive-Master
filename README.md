@@ -34,6 +34,21 @@ keep everything on your machine — good tradeoff to know about.
 
 ## Usage
 
+### Browser chat UI (like Claude / ChatGPT)
+
+```bash
+python -m web.server
+```
+Open **http://localhost:8000** — a chat interface, running entirely on your
+laptop, talking to whichever backend you configured. Sessions persist to
+git the same way as the CLI. The web UI does **not** expose `run_shell` by
+default (no safe way to prompt for confirmation mid-request) — enable it
+explicitly via `web_enable_shell: true` in `config.yaml` if you want it,
+but understand that means MM can execute shell commands with no
+confirmation step when reached through the browser.
+
+### CLI
+
 ```bash
 # interactive
 python agent.py
