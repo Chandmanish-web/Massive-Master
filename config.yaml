@@ -1,7 +1,7 @@
 # MM configuration
 # ---------------------------------------------------------
 # Choose your backend. Swap "active_backend" without touching code.
-active_backend: anthropic
+active_backend: ollama_local
 
 backends:
   anthropic:
