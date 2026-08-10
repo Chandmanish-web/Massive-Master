@@ -89,6 +89,16 @@ body {
   padding: 4px 0;
   color: var(--text-dim);
 }
+.meta-label { color: var(--text-dim); font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+#backendSelect {
+  width: 100%;
+  margin: 6px 0 12px;
+  padding: 6px;
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
 .status-dot { color: var(--sage); }
 .status-dot.error { color: var(--error); }
 

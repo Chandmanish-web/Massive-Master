@@ -4,6 +4,7 @@ const input = document.getElementById('input');
 const sendBtn = document.getElementById('sendBtn');
 const newChatBtn = document.getElementById('newChatBtn');
 const backendNameEl = document.getElementById('backendName');
+const backendSelect = document.getElementById('backendSelect');
 const statusDotEl = document.getElementById('statusDot');
 const menuBtn = document.getElementById('menuBtn');
 const sidebar = document.querySelector('.sidebar');
@@ -25,6 +26,25 @@ async function checkHealth() {
     if (data.status !== 'ok') {
       statusDotEl.classList.add('error');
       statusDotEl.title = 'Backend not configured - check API key / config.yaml';
+    }
+
+    async function loadBackends() {
+      try {
+        const res = await fetch('/api/backends');
+        const data = await res.json();
+        backendSelect.replaceChildren();
+        data.backends.forEach((backend) => {
+          const option = document.createElement('option');
+          option.value = backend.name;
+          option.textContent = backend.configured ? backend.name : `${backend.name} (not configured)`;
+          option.disabled = !backend.configured;
+          option.selected = backend.active;
+          backendSelect.appendChild(option);
+        });
+        backendNameEl.textContent = backendSelect.value || '—';
+      } catch (e) {
+        backendNameEl.textContent = 'unavailable';
+      }
     }
   } catch (e) {
     backendNameEl.textContent = 'offline';
@@ -90,7 +110,7 @@ async function sendMessage(text) {
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: text, session_id: sessionId }),
+      body: JSON.stringify({ message: text, session_id: sessionId, backend: backendSelect.value }),
     });
     removeThinking();
 
@@ -133,6 +153,10 @@ input.addEventListener('input', () => {
   input.style.height = Math.min(input.scrollHeight, 160) + 'px';
 });
 
+backendSelect.addEventListener('change', () => {
+  backendNameEl.textContent = backendSelect.value;
+});
+
 newChatBtn.addEventListener('click', async () => {
   try {
     const res = await fetch('/api/new_session', { method: 'POST' });
@@ -150,3 +174,4 @@ menuBtn.addEventListener('click', () => setSidebarOpen(!sidebar.classList.contai
 sidebarBackdrop.addEventListener('click', () => setSidebarOpen(false));
 
 checkHealth();
+loadBackends();

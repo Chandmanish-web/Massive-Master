@@ -37,11 +37,13 @@ except (ConfigurationError, BackendError) as exc:
     print(f"[MM] Backend setup error: {exc}")
     print("[MM] Set your API key or switch to ollama_local in config.yaml, then restart.")
     backend = None
+BACKENDS = {cfg["active_backend"]: backend} if backend else {}
 
 
 class ChatRequest(BaseModel):
     message: str
     session_id: str | None = None
+    backend: str | None = None
 
 
 class ChatResponse(BaseModel):
@@ -73,14 +75,36 @@ def health(x_mm_auth: str | None = Header(default=None)):
     return {
         "status": "ok" if backend else "backend_error",
         "backend": cfg["active_backend"],
+        "backends": list(cfg.get("backends", {})),
     }
+
+
+@app.get("/api/backends")
+def list_backends(x_mm_auth: str | None = Header(default=None)):
+    _require_auth(x_mm_auth)
+    result = []
+    for name, backend_cfg in cfg.get("backends", {}).items():
+        key_env = backend_cfg.get("api_key_env")
+        configured = not key_env or bool(os.environ.get(key_env) or backend_cfg.get("api_key"))
+        result.append({"name": name, "active": name == cfg["active_backend"], "configured": configured})
+    return {"backends": result}
 
 
 @app.post("/api/chat", response_model=ChatResponse)
 def chat(req: ChatRequest, x_mm_auth: str | None = Header(default=None)):
     _require_auth(x_mm_auth)
-    if backend is None:
-        raise HTTPException(500, "LLM backend not configured - check your API key / config.yaml")
+    backend_name = req.backend or cfg["active_backend"]
+    if backend_name not in cfg.get("backends", {}):
+        raise HTTPException(400, f"Unknown backend: {backend_name}")
+    selected_backend = BACKENDS.get(backend_name)
+    if selected_backend is None:
+        selected_cfg = dict(cfg)
+        selected_cfg["active_backend"] = backend_name
+        try:
+            selected_backend = get_backend(selected_cfg)
+        except (ConfigurationError, BackendError) as exc:
+            raise HTTPException(503, str(exc)) from exc
+        BACKENDS[backend_name] = selected_backend
 
     session_id = req.session_id or str(uuid.uuid4())[:8]
     try:
@@ -96,7 +120,7 @@ def chat(req: ChatRequest, x_mm_auth: str | None = Header(default=None)):
     messages.append({"role": "user", "content": req.message})
     try:
         reply = agent_turn(
-            backend,
+            selected_backend,
             cfg,
             messages,
             system_prompt,

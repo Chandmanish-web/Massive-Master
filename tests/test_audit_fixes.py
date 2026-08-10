@@ -193,6 +193,14 @@ class WebApiTests(unittest.TestCase):
         self.assertIn(client.get("/api/health").status_code, {200, 503})
         self.assertEqual(client.get("/").status_code, 200)
 
+    def test_backend_listing_endpoint(self):
+        from fastapi.testclient import TestClient
+        from web.server import app
+
+        response = TestClient(app).get("/api/backends")
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["backends"])
+
 
 if __name__ == "__main__":
     unittest.main()
