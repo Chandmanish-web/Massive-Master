@@ -23,16 +23,6 @@ LOGGER = logging.getLogger(__name__)
 def load_config():
     with open(ROOT / "config.yaml", encoding="utf-8") as f:
         cfg = yaml.safe_load(f) or {}
-    active_backend = os.environ.get("MM_ACTIVE_BACKEND")
-    if active_backend:
-        cfg["active_backend"] = active_backend
-    for backend_name, env_name in (
-        ("ollama_local", "MM_OLLAMA_BASE_URL"),
-        ("openai", "MM_OPENAI_BASE_URL"),
-        ("anthropic", "MM_ANTHROPIC_BASE_URL"),
-    ):
-        if os.environ.get(env_name) and backend_name in cfg.get("backends", {}):
-            cfg["backends"][backend_name]["base_url"] = os.environ[env_name]
     if "workspace_root" not in cfg:
         cfg["workspace_root"] = str(ROOT)
     else:
