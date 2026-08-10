@@ -223,6 +223,7 @@ def agent_turn(backend, cfg, messages, system_prompt, tool_schemas, confirm_shel
         if time.monotonic() - start_time > max_execution_seconds:
             return f"Agent stopped: execution budget of {max_execution_seconds}s exceeded"
 
+        _sanitize_tool_messages(messages)
         result = backend.send(messages, tool_schemas, system_prompt)
         if not result.get("tool_calls"):
             messages.append({"role": "assistant", "content": result.get("text", "")})
@@ -261,3 +262,26 @@ def agent_turn(backend, cfg, messages, system_prompt, tool_schemas, confirm_shel
         round_index += 1
 
     return f"Agent stopped: reached the maximum tool round limit of {max_tool_rounds}"
+
+
+def _sanitize_tool_messages(messages):
+    """Remove stale or hallucinated tool blocks from persisted conversations."""
+    valid_names = set(TOOL_FUNCTIONS)
+    valid_ids = set()
+    for message in messages:
+        if message.get("role") != "assistant" or not isinstance(message.get("content"), list):
+            continue
+        cleaned = []
+        for block in message["content"]:
+            if block.get("type") == "tool_use":
+                if block.get("name") not in valid_names:
+                    continue
+                valid_ids.add(block.get("id"))
+            cleaned.append(block)
+        message["content"] = cleaned
+    for message in messages:
+        if message.get("role") == "user" and isinstance(message.get("content"), list):
+            message["content"] = [
+                block for block in message["content"]
+                if block.get("type") != "tool_result" or block.get("tool_use_id") in valid_ids
+            ]

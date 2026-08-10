@@ -55,6 +55,8 @@ def _extract_text_tool_calls(content, provider):
     if not isinstance(content, str):
         return content or "", []
 
+    from tools import TOOL_FUNCTIONS
+
     candidates = []
     decoder = json.JSONDecoder()
     for match in re.finditer(r"\{", content):
@@ -68,7 +70,7 @@ def _extract_text_tool_calls(content, provider):
             parsed = json.loads(candidate)
         except json.JSONDecodeError:
             continue
-        if not isinstance(parsed, dict) or not parsed.get("name"):
+        if not isinstance(parsed, dict) or parsed.get("name") not in TOOL_FUNCTIONS:
             continue
         arguments = parsed.get("arguments", parsed.get("input", {}))
         tool_input = _parse_tool_arguments(arguments, provider)
@@ -341,11 +343,11 @@ class OllamaBackend:
         tool_calls = []
         for tc in msg.get("tool_calls", []) or []:
             args = tc.get("function", {}).get("arguments", "")
-            try:
-                parsed_input = json.loads(args) if isinstance(args, str) else args
-            except json.JSONDecodeError:
-                parsed_input = {"raw": args}
-            tool_calls.append({"name": tc["function"]["name"], "input": parsed_input, "id": tc.get("id")})
+            name = tc.get("function", {}).get("name")
+            if not name:
+                raise InvalidModelResponseError("Ollama returned a tool call without a name")
+            parsed_input = _parse_tool_arguments(args, "Ollama")
+            tool_calls.append({"name": name, "input": parsed_input, "id": tc.get("id") or name})
         text, text_tool_calls = _extract_text_tool_calls(msg.get("content", ""), "Ollama")
         return {"text": text, "tool_calls": tool_calls or text_tool_calls, "raw": data}
 
