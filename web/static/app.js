@@ -28,27 +28,29 @@ async function checkHealth() {
       statusDotEl.title = 'Backend not configured - check API key / config.yaml';
     }
 
-    async function loadBackends() {
-      try {
-        const res = await fetch('/api/backends');
-        const data = await res.json();
-        backendSelect.replaceChildren();
-        data.backends.forEach((backend) => {
-          const option = document.createElement('option');
-          option.value = backend.name;
-          option.textContent = backend.configured ? backend.name : `${backend.name} (not configured)`;
-          option.disabled = !backend.configured;
-          option.selected = backend.active;
-          backendSelect.appendChild(option);
-        });
-        backendNameEl.textContent = backendSelect.value || '—';
-      } catch (e) {
-        backendNameEl.textContent = 'unavailable';
-      }
-    }
   } catch (e) {
     backendNameEl.textContent = 'offline';
     statusDotEl.classList.add('error');
+  }
+
+}
+
+async function loadBackends() {
+  try {
+    const res = await fetch('/api/backends');
+    const data = await res.json();
+    backendSelect.replaceChildren();
+    data.backends.forEach((backend) => {
+      const option = document.createElement('option');
+      option.value = backend.name;
+      option.textContent = backend.configured ? backend.name : `${backend.name} (not configured)`;
+      option.disabled = !backend.configured;
+      option.selected = backend.active;
+      backendSelect.appendChild(option);
+    });
+    backendNameEl.textContent = backendSelect.value || '—';
+  } catch (e) {
+    backendNameEl.textContent = 'unavailable';
   }
 }
 
