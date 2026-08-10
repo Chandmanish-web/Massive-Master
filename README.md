@@ -13,6 +13,15 @@ source venv/bin/activate      # on Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
+## Deploy on Render free tier
+
+This repository includes [render.yaml](C:/Users/Lenovo/OneDrive/Desktop/Massive-master/render.yaml)
+for a free Render web service. The Blueprint uses an OpenAI-compatible hosted
+backend because Render's free tier cannot reliably host Ollama plus a multi-GB
+local model. Set `OPENAI_API_KEY` in Render's environment settings before
+using chat. Free services may sleep after inactivity, and local sessions,
+memory, and generated files are ephemeral because no persistent disk is used.
+
 Pick a backend in `config.yaml` (`active_backend: anthropic|openai|ollama_local`).
 
 ### Cloud backend (Anthropic or OpenAI)
