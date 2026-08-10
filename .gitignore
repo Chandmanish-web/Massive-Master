@@ -1,23 +1,28 @@
 # Secrets - never commit
 .env
 *.key
+*.pem
+*.p12
+*.sqlite
+*.db
 
 # Python
 __pycache__/
 *.pyc
 venv/
 .venv/
+Python/
 
 # OS junk
 .DS_Store
 
-# Note: sessions/ and memory/ ARE tracked on purpose - that's the point.
-# If a session ever contains something sensitive you don't want in git
-# history, remove it from sessions/ before it gets committed.
-
-# Generated project scaffolds and their zip exports - these are outputs,
-# not part of MM's own codebase. Untrack them so exporting a 500MB
-# node_modules-heavy app doesn't bloat this repo.
+# Runtime/private data
+sessions/
+memory/
+exports/
 projects/
-exports/*.zip
+*.log
+tmp_ollama.json
 
+# Local test artifacts
+.tmp/

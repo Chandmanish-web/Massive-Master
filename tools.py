@@ -3,11 +3,24 @@ Tool implementations the agent can call. Each tool has:
   - a JSON schema (for the LLM to know how to call it)
   - a Python function that actually executes it
 
-Add new tools by: (1) writing the function, (2) adding it to TOOL_SCHEMAS,
-(3) adding it to TOOL_FUNCTIONS.
+The filesystem tools operate inside a configured workspace root and reject
+path traversal attempts, absolute paths outside the workspace, and symlink
+escapes. Shell execution is bounded and permission-gated.
 """
 import os
 import subprocess
+import sys
+from pathlib import Path
+
+TOOL_PERMISSIONS = {
+    "read_file": "read",
+    "write_file": "write",
+    "list_dir": "read",
+    "search_code": "read",
+    "run_shell": "shell",
+    "remember": "write",
+    "export_zip": "write",
+}
 
 TOOL_SCHEMAS = [
     {
@@ -107,61 +120,128 @@ TOOL_SCHEMAS = [
 ]
 
 
-def read_file(path):
+def resolve_workspace_path(path, workspace_root="."):
+    if not isinstance(path, str) or not path.strip():
+        raise ValueError("Path must be a non-empty string")
+    root = Path(workspace_root).resolve()
+    candidate = Path(path)
+    if candidate.is_absolute():
+        resolved = Path(os.path.realpath(str(candidate)))
+    else:
+        resolved = Path(os.path.realpath(str(root / candidate)))
+
+    if ".." in Path(path).parts:
+        raise ValueError(f"Path traversal is not allowed: {path}")
+
     try:
-        with open(path, "r", encoding="utf-8") as f:
-            return f.read()
-    except Exception as e:
-        return f"ERROR reading {path}: {e}"
+        resolved.relative_to(root)
+    except ValueError as exc:
+        raise ValueError(f"Path escapes workspace root: {path}") from exc
+
+    current = root
+    for part in resolved.relative_to(root).parts:
+        current /= part
+        if current.is_symlink():
+            raise ValueError(f"Symlinks are not allowed: {path}")
+    return resolved
 
 
-def write_file(path, content):
+def read_file(path, workspace_root=".", max_bytes=20000):
+    resolved = resolve_workspace_path(path, workspace_root=workspace_root)
     try:
-        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(content)
-        return f"Wrote {len(content)} bytes to {path}"
-    except Exception as e:
-        return f"ERROR writing {path}: {e}"
+        with open(resolved, "r", encoding="utf-8") as handle:
+            content = handle.read()
+    except OSError as exc:
+        return f"ERROR reading {path}: {exc}"
+    if max_bytes and len(content) > max_bytes:
+        return content[:max_bytes] + f"\n[truncated: {len(content) - max_bytes} bytes omitted]"
+    return content
 
 
-def list_dir(path="."):
+def write_file(path, content, workspace_root="."):
+    resolved = resolve_workspace_path(path, workspace_root=workspace_root)
     try:
-        return "\n".join(sorted(os.listdir(path)))
-    except Exception as e:
-        return f"ERROR listing {path}: {e}"
+        resolved.parent.mkdir(parents=True, exist_ok=True)
+        with open(resolved, "w", encoding="utf-8") as handle:
+            handle.write(content)
+        return f"Wrote {len(content)} bytes"
+    except OSError as exc:
+        return f"ERROR writing {path}: {exc}"
 
 
-def search_code(pattern, path="."):
+def list_dir(path=".", workspace_root="."):
+    resolved = resolve_workspace_path(path, workspace_root=workspace_root)
+    try:
+        return "\n".join(sorted(os.listdir(resolved)))
+    except OSError as exc:
+        return f"ERROR listing {path}: {exc}"
+
+
+def search_code(pattern, path=".", workspace_root=".", max_results=50, max_output_chars=10000):
+    try:
+        root = Path(resolve_workspace_path(path, workspace_root=workspace_root))
+    except ValueError as exc:
+        return f"ERROR searching: {exc}"
+
+    matches = []
+    for current_root, dirs, files in os.walk(root):
+        dirs[:] = [d for d in dirs if d not in {".git", "__pycache__", "venv", ".venv", "node_modules"}]
+        for file_name in files:
+            file_path = Path(current_root) / file_name
+            if file_path.is_symlink():
+                continue
+            try:
+                with open(file_path, "r", encoding="utf-8", errors="ignore") as handle:
+                    for line_no, line in enumerate(handle, start=1):
+                        if pattern in line:
+                            matches.append(f"{file_path.relative_to(root)}:{line_no}:{line.rstrip()}")
+                            if len(matches) >= max_results:
+                                break
+            except OSError:
+                continue
+            if len(matches) >= max_results:
+                break
+        if len(matches) >= max_results:
+            break
+    output = "\n".join(matches) if matches else "(no matches)"
+    if len(output) > max_output_chars:
+        return output[:max_output_chars] + f"\n[truncated: {len(output) - max_output_chars} chars omitted]"
+    return output
+
+
+def run_shell(command, allow_shell=False, timeout_seconds=30, max_output_chars=10000, cwd=None):
+    if not allow_shell:
+        raise PermissionError("Shell execution is disabled")
     try:
         result = subprocess.run(
-            ["grep", "-rn", pattern, path],
-            capture_output=True, text=True, timeout=30,
+            command,
+            shell=True,
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+            cwd=cwd,
+            env={k: v for k, v in os.environ.items() if k in {"PATH", "HOME", "USERPROFILE", "TEMP", "TMPDIR"}},
         )
-        return result.stdout or "(no matches)"
-    except Exception as e:
-        return f"ERROR searching: {e}"
+    except subprocess.TimeoutExpired as exc:
+        raise TimeoutError(f"Command timed out after {timeout_seconds}s") from exc
+    except OSError as exc:
+        raise RuntimeError(f"Shell execution failed: {exc}") from exc
+
+    out = (result.stdout or "") + (result.stderr or "")
+    if len(out) > max_output_chars:
+        out = out[:max_output_chars] + f"\n[truncated: {len(out) - max_output_chars} chars omitted]"
+    return out or f"Exit code: {result.returncode}"
 
 
-def run_shell(command, confirm=True):
-    if confirm:
-        answer = input(f"\n[confirm] Run shell command?\n  $ {command}\n  (y/N): ")
-        if answer.strip().lower() != "y":
-            return "User declined to run this command."
-    try:
-        result = subprocess.run(
-            command, shell=True, capture_output=True, text=True, timeout=120,
-        )
-        out = result.stdout + result.stderr
-        return out[-4000:] if len(out) > 4000 else out  # avoid blowing up context
-    except Exception as e:
-        return f"ERROR running command: {e}"
-
-
-def remember(section, note, memory_path="memory/notes.md"):
+def remember(section, note, memory_path=None, workspace_root="."):
     """Append a durable note under the given section heading. Idempotent-ish:
     just appends, doesn't dedupe - the git history is the audit trail."""
     import datetime
+    if memory_path is None:
+        memory_path = str(resolve_workspace_path("memory/notes.md", workspace_root))
+    else:
+        memory_path = str(resolve_workspace_path(memory_path, workspace_root))
+    Path(memory_path).parent.mkdir(parents=True, exist_ok=True)
     try:
         with open(memory_path, "r", encoding="utf-8") as f:
             content = f.read()
@@ -185,26 +265,32 @@ def remember(section, note, memory_path="memory/notes.md"):
     return f"Remembered under '{section}': {note}"
 
 
-def export_zip(source_dir, zip_name, exports_dir="exports"):
+def export_zip(source_dir, zip_name, exports_dir="exports", workspace_root="."):
     """Zip a project folder for the user to download/share."""
     import os as _os
     import zipfile
 
-    if not _os.path.isdir(source_dir):
+    source_path = resolve_workspace_path(source_dir, workspace_root)
+    exports_path = resolve_workspace_path(exports_dir, workspace_root)
+    if not source_path.is_dir():
         return f"ERROR: '{source_dir}' is not a directory."
 
-    _os.makedirs(exports_dir, exist_ok=True)
-    zip_path = _os.path.join(exports_dir, f"{zip_name}.zip")
+    if not isinstance(zip_name, str) or not zip_name or Path(zip_name).name != zip_name:
+        return "ERROR: zip_name must be a simple filename."
+    exports_path.mkdir(parents=True, exist_ok=True)
+    zip_path = exports_path / f"{zip_name}.zip"
 
     skip_dirs = {".git", "__pycache__", "node_modules", "venv", ".venv"}
     file_count = 0
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
-        for root, dirs, files in _os.walk(source_dir):
+        for root, dirs, files in _os.walk(source_path):
             dirs[:] = [d for d in dirs if d not in skip_dirs]
             for f in files:
-                full_path = _os.path.join(root, f)
-                arcname = _os.path.relpath(full_path, _os.path.dirname(source_dir))
-                zf.write(full_path, arcname)
+                full_path = Path(root) / f
+                if full_path.is_symlink():
+                    continue
+                arcname = full_path.relative_to(source_path.parent)
+                zf.write(full_path, str(arcname))
                 file_count += 1
 
     return f"Exported {file_count} files to {zip_path}"

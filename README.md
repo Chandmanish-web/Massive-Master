@@ -1,9 +1,9 @@
 # MM (massive-master) — your private agent
 
-A minimal, fully-yours CLI agent for building full applications and web
-applications, coding/debugging help, and general chat/problem-solving.
-Swap LLM backends without touching code, define its purpose in one editable
-prompt file, and extend it with whatever tools you need.
+A provider-independent local coding agent for building apps, debugging code,
+and working through problems safely. The agent now supports Anthropic,
+OpenAI, and Ollama through a shared internal protocol, while filesystem and
+shell tools are constrained by a workspace sandbox and explicit permissions.
 
 ## Setup
 
@@ -29,8 +29,8 @@ export OPENAI_API_KEY=sk-...
 ollama pull qwen2.5-coder:14b
 # 3. set active_backend: ollama_local in config.yaml
 ```
-Local models are weaker than frontier cloud models on complex tasks but
-keep everything on your machine — good tradeoff to know about.
+Ollama tool calling is supported when the HTTP API is available. CLI fallback
+is disabled by default and only used when explicitly configured.
 
 ## Usage
 
@@ -40,8 +40,7 @@ keep everything on your machine — good tradeoff to know about.
 python -m web.server
 ```
 Open **http://localhost:8000** — a chat interface, running entirely on your
-laptop, talking to whichever backend you configured. Sessions persist to
-git the same way as the CLI. The web UI does **not** expose `run_shell` by
+laptop, talking to whichever backend you configured. Sessions persist locally in the configured sessions directory. The web UI does **not** expose `run_shell` by
 default (no safe way to prompt for confirmation mid-request) — enable it
 explicitly via `web_enable_shell: true` in `config.yaml` if you want it,
 but understand that means MM can execute shell commands with no
@@ -60,10 +59,11 @@ python agent.py "scaffold a full-stack todo web app: FastAPI backend + React fro
 python agent.py "should I use Postgres or SQLite for a small internal tool?"
 ```
 
-MM can read/write files, run shell commands (asks for confirmation first —
-you can turn that off in config.yaml), search code, and list directories in
-whatever project folder you run it from. For pure discussion/problem-solving
-prompts it just responds conversationally, without forcing file/tool use.
+MM can read/write files, search code, and list directories inside the
+configured workspace root. Shell execution is disabled by default and only
+runs when explicitly allowed in config and approved by the user. For pure
+discussion/problem-solving prompts it responds conversationally without
+forcing file/tool use.
 
 ## Customizing "what it's for"
 
@@ -108,16 +108,16 @@ not part of MM's own tracked codebase/memory.
 MM is version-controlled with git from the start, and that history *is*
 its long-term memory:
 
-- Every session's full conversation is saved to `sessions/session_<date>.json`.
+- Every session's full conversation is saved locally to `sessions/session_<date>.json` (ignored by git by default).
 - MM can call the `remember` tool to save durable facts (your preferences,
   project details, decisions) into `memory/notes.md` — a plain, human-readable
   file organized by section.
-- After every turn, MM auto-commits any changes (sessions, memory, code) to
-  git, tagged with a short summary. Turn this off via `git_auto_commit: false`
-  in `config.yaml` if you'd rather commit manually.
-- `memory/notes.md` is read fresh into the system prompt at the start of
-  every session, so MM actually uses what it remembers rather than just
-  storing it.
+- Automatic git commits are disabled by default. If enabled, only explicitly
+  allow-listed source changes are committed; sessions, memory, secrets, and
+  generated artifacts are never added automatically. Commit failures are
+  reported instead of being silently ignored.
+- Memory is local runtime data and is read fresh into the system prompt at the
+  start of every session.
 
 Useful commands:
 ```bash
@@ -132,13 +132,11 @@ the structure already supports it.
 
 ## Security notes
 
-- `run_shell` asks for confirmation by default — keep this on unless you
-  fully trust the prompt/model combo you're running.
+- Filesystem tools are sandboxed to the configured workspace root and reject
+  traversal, absolute paths outside the workspace, and symlink escapes.
+- Shell execution requires explicit approval and is disabled by default.
 - Cloud backends send your code/prompts to that provider's API. If that's
   a concern for company IP, use `ollama_local` or check your company's
   policy on external AI tools first.
-- Sessions are saved to `sessions/*.json` in plaintext **and committed to
-  git** — treat this repo itself as sensitive if your projects are. Don't
-  push it to a public remote; if you push to a private company remote,
-  make sure that's consistent with your company's policy on where code/
-  chat logs are allowed to live.
+- Session data is no longer tracked by git by default; runtime data is stored
+  under the configured session directory and should be treated as sensitive.

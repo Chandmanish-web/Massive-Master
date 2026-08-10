@@ -1,11 +1,11 @@
-# mycli agent configuration
+# MM configuration
 # ---------------------------------------------------------
-# Choose your backend. Swap "active" without touching code.
+# Choose your backend. Swap "active_backend" without touching code.
 active_backend: anthropic
 
 backends:
   anthropic:
-    api_key_env: ANTHROPIC_API_KEY      # export this in your shell
+    api_key_env: ANTHROPIC_API_KEY
     model: claude-sonnet-4-6
     base_url: https://api.anthropic.com/v1/messages
     max_tokens: 4096
@@ -17,22 +17,47 @@ backends:
     max_tokens: 4096
 
   ollama_local:
-    # Fully local/offline option - no API key, no data leaves your machine.
-    # Requires: https://ollama.com installed + `ollama pull qwen2.5-coder:14b` (or similar)
     base_url: http://localhost:11434/api/chat
     model: qwen2.5-coder:14b
     max_tokens: 4096
+    allow_cli_fallback: false
+
+workspace_root: .
+
+# Tool permissions
+tools:
+  read: true
+  write: true
+  shell: false
+
+# Shell safety limits
+shell:
+  enabled: false
+  timeout_seconds: 30
+  max_output_chars: 10000
+  cwd: .
+
+# Agent execution limits
+agent:
+  max_tool_rounds: 20
+  max_tool_calls: 50
+  max_execution_seconds: 300
 
 # Safety: require manual confirmation before running shell commands
 confirm_shell_commands: true
 
 # Auto-commit sessions + memory to git after every turn.
-# This is what makes git your "proper personal AI" history - every
-# session and every remembered fact is a recoverable commit.
-git_auto_commit: true
+# Disabled by default to avoid committing secrets or session data.
+git_auto_commit: false
 
 # Where session history is stored
 session_dir: sessions
 
 # System prompt file - EDIT THIS to define your agent's purpose/behavior
 system_prompt_file: prompts/system_prompt.md
+
+# Web server safety. Non-local hosts require MM_WEB_AUTH_TOKEN (or the
+# configured environment variable) on every API request.
+web_host: 127.0.0.1
+web_port: 8000
+web_auth_token_env: MM_WEB_AUTH_TOKEN

@@ -1,4 +1,4 @@
-Run a model
+setx ANTHROPIC_API_KEY "sk-..."Run a model
 
 Usage:
   ollama run MODEL [PROMPT] [flags]

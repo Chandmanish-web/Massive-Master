@@ -5,8 +5,17 @@ const sendBtn = document.getElementById('sendBtn');
 const newChatBtn = document.getElementById('newChatBtn');
 const backendNameEl = document.getElementById('backendName');
 const statusDotEl = document.getElementById('statusDot');
+const menuBtn = document.getElementById('menuBtn');
+const sidebar = document.querySelector('.sidebar');
+const sidebarBackdrop = document.getElementById('sidebarBackdrop');
 
 let sessionId = null;
+
+function setSidebarOpen(open) {
+  sidebar.classList.toggle('open', open);
+  sidebarBackdrop.classList.toggle('visible', open);
+  menuBtn.setAttribute('aria-expanded', String(open));
+}
 
 async function checkHealth() {
   try {
@@ -125,10 +134,19 @@ input.addEventListener('input', () => {
 });
 
 newChatBtn.addEventListener('click', async () => {
-  const res = await fetch('/api/new_session', { method: 'POST' });
-  const data = await res.json();
-  sessionId = data.session_id;
-  messagesEl.innerHTML = `<div class="empty-state"><span class="empty-caret">&gt;</span><p>New session started.</p></div>`;
+  try {
+    const res = await fetch('/api/new_session', { method: 'POST' });
+    if (!res.ok) throw new Error('Unable to create a session');
+    const data = await res.json();
+    sessionId = data.session_id;
+    messagesEl.innerHTML = `<div class="empty-state"><span class="empty-caret">&gt;</span><p>New session started.</p></div>`;
+    setSidebarOpen(false);
+  } catch (e) {
+    addMessage('assistant', `Error: ${e.message}`);
+  }
 });
+
+menuBtn.addEventListener('click', () => setSidebarOpen(!sidebar.classList.contains('open')));
+sidebarBackdrop.addEventListener('click', () => setSidebarOpen(false));
 
 checkHealth();

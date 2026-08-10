@@ -1,25 +1,23 @@
 #!/usr/bin/env python3
 """
 MM web server - serves the browser chat UI and handles chat requests.
-
-Run from the project root:
-    python -m web.server
-
-Then open http://localhost:8000
 """
-import sys
-import uuid
 import datetime
+import hmac
+import os
+import sys
+import threading
+import uuid
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from llm_backends import get_backend, BackendError
-from core import load_config, load_system_prompt, save_session, agent_turn, get_web_tool_schemas
+from core import agent_turn, get_web_tool_schemas, load_config, load_session, load_system_prompt, save_session
+from llm_backends import BackendError, ConfigurationError, get_backend
 
 ROOT = Path(__file__).parent.parent
 STATIC_DIR = Path(__file__).parent / "static"
@@ -27,9 +25,7 @@ STATIC_DIR = Path(__file__).parent / "static"
 app = FastAPI(title="MM - massive-master")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
-# In-memory session store: {session_id: [messages]}
-# Simple by design - full history is also persisted to sessions/*.json + git.
-SESSIONS = {}
+SESSION_LOCK = threading.Lock()
 
 cfg = load_config()
 system_prompt = load_system_prompt(cfg)
@@ -37,8 +33,8 @@ tool_schemas = get_web_tool_schemas(cfg)
 
 try:
     backend = get_backend(cfg)
-except BackendError as e:
-    print(f"[MM] Backend setup error: {e}")
+except (ConfigurationError, BackendError) as exc:
+    print(f"[MM] Backend setup error: {exc}")
     print("[MM] Set your API key or switch to ollama_local in config.yaml, then restart.")
     backend = None
 
@@ -54,13 +50,26 @@ class ChatResponse(BaseModel):
     tool_calls: list
 
 
+def _require_auth(token: str | None):
+    host = cfg.get("web_host", "127.0.0.1")
+    if host in {"127.0.0.1", "localhost", "::1"}:
+        return
+    env_name = cfg.get("web_auth_token_env", "MM_WEB_AUTH_TOKEN")
+    expected = os.environ.get(env_name)
+    if not expected:
+        raise HTTPException(503, "Web authentication is not configured")
+    if not token or not hmac.compare_digest(token, expected):
+        raise HTTPException(401, "Invalid or missing authentication token")
+
+
 @app.get("/")
 def index():
     return FileResponse(STATIC_DIR / "index.html")
 
 
 @app.get("/api/health")
-def health():
+def health(x_mm_auth: str | None = Header(default=None)):
+    _require_auth(x_mm_auth)
     return {
         "status": "ok" if backend else "backend_error",
         "backend": cfg["active_backend"],
@@ -68,13 +77,17 @@ def health():
 
 
 @app.post("/api/chat", response_model=ChatResponse)
-def chat(req: ChatRequest):
+def chat(req: ChatRequest, x_mm_auth: str | None = Header(default=None)):
+    _require_auth(x_mm_auth)
     if backend is None:
         raise HTTPException(500, "LLM backend not configured - check your API key / config.yaml")
 
     session_id = req.session_id or str(uuid.uuid4())[:8]
-    messages = SESSIONS.setdefault(session_id, [])
-
+    try:
+        with SESSION_LOCK:
+            messages = load_session(cfg, f"web_{session_id}_{datetime.date.today().isoformat()}")
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
     tool_log = []
 
     def on_tool_call(name, tool_input, output):
@@ -83,21 +96,26 @@ def chat(req: ChatRequest):
     messages.append({"role": "user", "content": req.message})
     try:
         reply = agent_turn(
-            backend, cfg, messages, system_prompt, tool_schemas,
-            confirm_shell=False,  # web UI never runs shell without explicit config opt-in
+            backend,
+            cfg,
+            messages,
+            system_prompt,
+            tool_schemas,
+            confirm_shell=False,
             on_tool_call=on_tool_call,
         )
-    except BackendError as e:
-        raise HTTPException(500, str(e))
+    except BackendError as exc:
+        raise HTTPException(500, str(exc))
 
-    save_session(cfg, f"web_{session_id}_{datetime.date.today()}", messages)
+    with SESSION_LOCK:
+        save_session(cfg, f"web_{session_id}_{datetime.date.today().isoformat()}", messages)
     return ChatResponse(session_id=session_id, reply=reply or "", tool_calls=tool_log)
 
 
 @app.post("/api/new_session")
-def new_session():
+def new_session(x_mm_auth: str | None = Header(default=None)):
+    _require_auth(x_mm_auth)
     session_id = str(uuid.uuid4())[:8]
-    SESSIONS[session_id] = []
     return {"session_id": session_id}
 
 
@@ -105,4 +123,4 @@ if __name__ == "__main__":
     import uvicorn
     print(f"MM web UI starting — backend: {cfg['active_backend']}")
     print("Open http://localhost:8000 in your browser")
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(app, host=cfg.get("web_host", "127.0.0.1"), port=cfg.get("web_port", 8000))

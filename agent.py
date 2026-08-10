@@ -15,12 +15,12 @@ Setup:
     edit config.yaml to pick your backend
     edit prompts/system_prompt.md to define MM's purpose/behavior
 """
-import sys
 import datetime
+import sys
 
-from llm_backends import get_backend, BackendError
+from llm_backends import BackendError, ConfigurationError, get_backend
 from tools import TOOL_SCHEMAS
-from core import load_config, load_system_prompt, save_session, agent_turn
+from core import agent_turn, load_config, load_system_prompt, save_session
 
 
 def main():
@@ -29,8 +29,8 @@ def main():
 
     try:
         backend = get_backend(cfg)
-    except BackendError as e:
-        print(f"Backend setup error: {e}")
+    except (ConfigurationError, BackendError) as exc:
+        print(f"Backend setup error: {exc}")
         sys.exit(1)
 
     messages = []
@@ -44,8 +44,13 @@ def main():
     def run_turn(prompt):
         messages.append({"role": "user", "content": prompt})
         text = agent_turn(
-            backend, cfg, messages, system_prompt, TOOL_SCHEMAS,
-            confirm_shell=confirm_shell, on_tool_call=on_tool_call,
+            backend,
+            cfg,
+            messages,
+            system_prompt,
+            TOOL_SCHEMAS,
+            confirm_shell=confirm_shell,
+            on_tool_call=on_tool_call,
         )
         if text:
             print(f"\n{text}\n")
@@ -67,8 +72,8 @@ def main():
             continue
         try:
             run_turn(user_input)
-        except BackendError as e:
-            print(f"Error: {e}")
+        except BackendError as exc:
+            print(f"Error: {exc}")
 
 
 if __name__ == "__main__":
