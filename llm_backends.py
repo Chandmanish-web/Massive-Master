@@ -5,6 +5,7 @@ provider-specific serialization and parsing to these adapters.
 """
 import json
 import os
+import re
 import subprocess
 
 import requests
@@ -47,6 +48,34 @@ def _parse_tool_arguments(arguments, provider):
     if not isinstance(parsed, dict):
         raise InvalidModelResponseError(f"{provider} tool arguments must be a JSON object")
     return parsed
+
+
+def _extract_text_tool_calls(content, provider):
+    """Recover tool calls emitted as JSON text by models without native support."""
+    if not isinstance(content, str):
+        return content or "", []
+
+    candidates = []
+    decoder = json.JSONDecoder()
+    for match in re.finditer(r"\{", content):
+        try:
+            _, end = decoder.raw_decode(content[match.start():])
+        except json.JSONDecodeError:
+            continue
+        candidates.append((match.start(), content[match.start():match.start() + end]))
+    for start, candidate in candidates:
+        try:
+            parsed = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(parsed, dict) or not parsed.get("name"):
+            continue
+        arguments = parsed.get("arguments", parsed.get("input", {}))
+        tool_input = _parse_tool_arguments(arguments, provider)
+        visible_text = (content[:start] + content[start + len(candidate):]).strip()
+        visible_text = re.sub(r"```(?:json)?", "", visible_text, flags=re.IGNORECASE).replace("```", "").strip()
+        return visible_text, [{"name": parsed["name"], "input": tool_input, "id": f"{provider.lower()}-text-0"}]
+    return content, []
 
 
 def _post_json(url, **kwargs):
@@ -317,7 +346,8 @@ class OllamaBackend:
             except json.JSONDecodeError:
                 parsed_input = {"raw": args}
             tool_calls.append({"name": tc["function"]["name"], "input": parsed_input, "id": tc.get("id")})
-        return {"text": msg.get("content", ""), "tool_calls": tool_calls, "raw": data}
+        text, text_tool_calls = _extract_text_tool_calls(msg.get("content", ""), "Ollama")
+        return {"text": text, "tool_calls": tool_calls or text_tool_calls, "raw": data}
 
     def _send_via_http(self, messages, tools, system_prompt):
         full_messages = [{"role": "system", "content": system_prompt}] + self.convert_messages(messages)

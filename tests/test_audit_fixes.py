@@ -61,6 +61,17 @@ class ProviderAdapterTests(unittest.TestCase):
             backend.send([], [], "system")
         self.assertEqual(post.call_args.kwargs["headers"]["Authorization"], "Bearer test-key")
 
+    def test_ollama_recovers_text_tool_call(self):
+        backend = OllamaBackend({"model": "qwen2.5-coder:1.5b", "base_url": "http://example.test"})
+        result = backend.parse_response({
+            "message": {
+                "content": '```json\n{"name":"remember","arguments":{"section":"Projects","note":"test"}}\n```'
+            }
+        })
+        self.assertEqual(result["text"], "")
+        self.assertEqual(result["tool_calls"][0]["name"], "remember")
+        self.assertEqual(result["tool_calls"][0]["input"]["note"], "test")
+
     def test_failed_request_is_reported(self):
         backend = OpenAIBackend({"api_key": "test-key", "model": "gpt-4.1", "base_url": "https://example.test"})
         with patch("llm_backends.requests.post", side_effect=requests.exceptions.ConnectionError("network")):
