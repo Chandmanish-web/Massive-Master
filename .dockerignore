@@ -1,0 +1,13 @@
+.git
+.gitignore
+venv
+.venv
+Python
+__pycache__
+*.pyc
+.pytest_cache
+sessions
+memory
+exports
+tmp_ollama.json
+.env

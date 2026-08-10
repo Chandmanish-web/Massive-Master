@@ -1,0 +1,30 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: massive-ollama
+    ports:
+      - "11435:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  app:
+    build:
+      context: .
+    container_name: massive-master
+    ports:
+      - "8000:8000"
+    environment:
+      MM_WORKSPACE_ROOT: /app
+    depends_on:
+      ollama:
+        condition: service_healthy
+    volumes:
+      - .:/app
+
+volumes:
+  ollama_data:
