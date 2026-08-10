@@ -20,6 +20,7 @@ services:
       - "8000:8000"
     environment:
       MM_WORKSPACE_ROOT: /app
+      OLLAMA_KEEP_ALIVE: 10m
     depends_on:
       ollama:
         condition: service_healthy

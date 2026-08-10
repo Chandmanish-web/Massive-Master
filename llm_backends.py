@@ -23,7 +23,7 @@ class ConfigurationError(ApplicationError, ValueError):
     pass
 
 
-class ProviderError(ApplicationError):
+class ProviderError(BackendError):
     pass
 
 
@@ -324,7 +324,11 @@ class OllamaBackend:
         payload = {"model": self.cfg["model"], "messages": full_messages, "stream": False}
         if tools:
             payload["tools"] = self.serialize_tools(tools)
-        resp = _post_json(self.cfg["base_url"], json=payload, timeout=30)
+        resp = _post_json(
+            self.cfg["base_url"],
+            json=payload,
+            timeout=self.cfg.get("request_timeout_seconds", 180),
+        )
         if resp.status_code != 200:
             raise ProviderError(f"Ollama error {resp.status_code}: {resp.text}")
         data = resp.json()
