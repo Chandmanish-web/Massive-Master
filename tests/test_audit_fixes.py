@@ -7,7 +7,7 @@ from pathlib import Path
 
 from core import agent_turn, validate_config
 from llm_backends import AnthropicBackend, OllamaBackend, OpenAIBackend, ProviderError
-from tools import TOOL_SCHEMAS, export_zip, list_dir, read_file, remember, run_shell, search_code, write_file
+from tools import TOOL_SCHEMAS, export_zip, list_dir, read_file, remember, run_shell, scaffold_project, search_code, write_file
 
 
 class ProviderAdapterTests(unittest.TestCase):
@@ -136,6 +136,24 @@ class FilesystemSandboxTests(unittest.TestCase):
         result = export_zip("project", "project", workspace_root=str(self.workspace))
         self.assertIn("Exported 1 files", result)
         self.assertIn("ERROR", export_zip("project", "../escape", workspace_root=str(self.workspace)))
+
+    def test_export_omits_runtime_secrets(self):
+        project = self.workspace / "project"
+        project.mkdir()
+        (project / ".env").write_text("SECRET=value", encoding="utf-8")
+        (project / ".env.example").write_text("SECRET=", encoding="utf-8")
+        export_zip("project", "safe-project", workspace_root=str(self.workspace))
+        import zipfile
+        with zipfile.ZipFile(self.workspace / "exports" / "safe-project.zip") as archive:
+            self.assertNotIn("project/.env", archive.namelist())
+            self.assertIn("project/.env.example", archive.namelist())
+
+    def test_scaffold_project_creates_framework_structure(self):
+        result = scaffold_project("demo-app", "mern", workspace_root=str(self.workspace))
+        self.assertIn("Scaffolded mern project", result)
+        self.assertTrue((self.workspace / "projects" / "demo-app" / "client" / "src" / "main.jsx").exists())
+        self.assertTrue((self.workspace / "projects" / "demo-app" / "server" / "src" / "index.js").exists())
+        self.assertIn("already exists", scaffold_project("demo-app", "mern", workspace_root=str(self.workspace)))
 
 
 class ShellSecurityTests(unittest.TestCase):

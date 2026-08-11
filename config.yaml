@@ -17,8 +17,8 @@ backends:
     max_tokens: 4096
 
   ollama_local:
-    base_url: http://ollama:11434/api/chat
-    model: qwen2.5-coder:1.5b
+    base_url: http://127.0.0.1:11434/api/chat
+    model: qwen2.5-coder:14b
     max_tokens: 4096
     allow_cli_fallback: false
     request_timeout_seconds: 180

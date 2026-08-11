@@ -164,6 +164,8 @@ def _validate_tool_input(name, tool_input, cfg):
 
     for key, value in tool_input.items():
         prop_schema = properties.get(key, {})
+        if "enum" in prop_schema and value not in prop_schema["enum"]:
+            raise ValueError(f"Field '{key}' has unsupported value: {value}")
         if key in {"path", "source_dir", "exports_dir", "memory_path"} and isinstance(value, str):
             resolve_workspace_path(value, workspace_root=cfg.get("workspace_root", ROOT))
         if key == "command" and not isinstance(value, str):
